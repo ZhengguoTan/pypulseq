@@ -1,8 +1,9 @@
 """Tests for the make_trapezoid module"""
 
 import pytest
-from pypulseq import Opts, eps, make_trapezoid
-
+from pypulseq import Opts, eps, util, make_trapezoid
+import pypulseq as pp
+import numpy as np
 
 def test_channel_error():
     with pytest.raises(ValueError, match=r'Invalid channel. Must be one of `x`, `y` or `z`. Passed:'):
@@ -130,3 +131,42 @@ def test_generation_methods():
     # flat_time + area + rise_time
     trap = make_trapezoid(channel='x', flat_time=0.5, area=1, rise_time=0.1)
     compare_trap_out(trap, 1 / 0.6, 0.1, 0.5, 0.1)
+
+def test_make_blip_gradient():
+    """
+    test the case of utilizing `make_trapezoid` to make a blip gradient.
+
+    Author:
+        Zhengguo Tan <zhengguo.tan@gmail.com>
+    """
+    system = pp.Opts(
+        B0=2.89,
+        max_grad=78,
+        grad_unit='mT/m',
+        grad_raster_time=10E-6,
+        max_slew=150,
+        slew_unit='T/m/s',
+        rf_ringdown_time=10E-6,
+        rf_dead_time=100E-6,
+        adc_dead_time=0,
+    )
+    seq = pp.Sequence(system)
+
+    fov = 220E-3
+    delta_k = 1/fov
+
+    blip_duration = util.round_to_grad_raster_time(
+        2*np.sqrt(delta_k/system.max_slew),
+        system.grad_raster_time
+        )
+
+    gy = make_trapezoid('y', system=system,
+                        area=-delta_k,
+                        duration=blip_duration)
+
+    # blip is a triangle
+    blip_area = gy.amplitude * (gy.rise_time + gy.fall_time) / 2
+    assert gy.area == blip_area
+
+    # blip has no flat time
+    assert gy.flat_time == 0
