@@ -6,6 +6,7 @@ Author:
 """
 
 import numpy as np
+import math
 
 
 # %%
@@ -30,17 +31,17 @@ def cart2sph(x, y, z):
     return azimuth, elevation, r
 
 # %%
-def round_to_grad_raster_time(t: float,
-                              grad_raster_time: float = 10E-6):
+def ceil(t: float,
+         raster_time: float = 10E-6):
     """
-    Round the input time (t) to the gradient raster time in s.
+    Ceil the input time (t) to the gradient raster time in s.
 
     Args:
         t: time in s.
         grad_raster_time: gradient raster time in s. [default: 10e-6]
 
     Returns:
-        time rounded by the gradient raster time in s.
+        time ceiled by the gradient raster time in s.
     """
 
-    return np.ceil(t / grad_raster_time) * grad_raster_time
+    return math.ceil(t / raster_time) * raster_time
