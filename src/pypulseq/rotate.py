@@ -190,11 +190,12 @@ def rotate3(input: Union[SimpleNamespace, List[SimpleNamespace]],
 
         for tag in modified_tags:
 
-            val = getattr(grad, tag).item()
+            val = getattr(grad, tag)
+            val = val.item() if isinstance(val, np.ndarray) else val
             arr = _value_to_3x1_array(val, grad.channel)
             arr = np.matmul(rot, arr)
             for n in range(3): # 3 axes - x, y, z
                 val = getattr(output[n], tag)
-                setattr(output[n], tag, arr[n]+val)
+                setattr(output[n], tag, arr[n].item()+val)
 
     return output
