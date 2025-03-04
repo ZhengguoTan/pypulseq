@@ -31,7 +31,7 @@ def test_rotate_along_the_same_axis():
     fov = 220E-3
     delta_k = 1/fov
 
-    blip_duration = util.round_to_grad_raster_time(
+    blip_duration = util.ceil(
         2*np.sqrt(delta_k/system.max_slew),
         system.grad_raster_time
         )
@@ -53,7 +53,7 @@ def test_rotate_orthogonal_axis():
     fov = 220E-3
     delta_k = 1/fov
 
-    blip_duration = util.round_to_grad_raster_time(
+    blip_duration = util.ceil(
         2*np.sqrt(delta_k/system.max_slew),
         system.grad_raster_time
         )
@@ -83,7 +83,7 @@ def test_rotate3():
     fov = 220E-3
     delta_k = 1/fov
 
-    blip_duration = util.round_to_grad_raster_time(
+    blip_duration = util.ceil(
         2*np.sqrt(delta_k/system.max_slew),
         system.grad_raster_time
         )

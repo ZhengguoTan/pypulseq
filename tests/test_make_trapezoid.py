@@ -155,7 +155,7 @@ def test_make_blip_gradient():
     fov = 220E-3
     delta_k = 1/fov
 
-    blip_duration = util.round_to_grad_raster_time(
+    blip_duration = util.ceil(
         2*np.sqrt(delta_k/system.max_slew),
         system.grad_raster_time
         )
