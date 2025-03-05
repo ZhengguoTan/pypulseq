@@ -31,17 +31,57 @@ def cart2sph(x, y, z):
     return azimuth, elevation, r
 
 # %%
-def ceil(t: float,
-         raster_time: float = 10E-6):
+def round_up_raster_time(t: float,
+                         raster_time: float = 10E-6):
     """
     Ceil the input time (t) to the gradient raster time in s.
 
     Args:
         t: time in s.
-        grad_raster_time: gradient raster time in s. [default: 10e-6]
+        raster_time: gradient raster time in s. [default: 10e-6]
 
     Returns:
         time ceiled by the gradient raster time in s.
     """
+    if t < 0:
+        return 0
 
-    return math.ceil(t / raster_time) * raster_time
+    # convert to second
+    t_sec = int(math.ceil(t * 1E6))
+    raster_time_sec = int(raster_time * 1E6)
+
+    resid = t_sec % raster_time_sec
+
+    if resid > 0:
+        t_sec = t_sec + raster_time_sec - resid
+
+    # return in us and allow only 6 decimal points
+    return round(t_sec * 1E-6, 6)
+
+# %%
+def round_down_raster_time(t: float,
+                           raster_time: float = 10E-6):
+    """
+    Floor the input time (t) to the gradient raster time in s.
+
+    Args:
+        t: time in s.
+        raster_time: gradient raster time in s. [default: 10e-6]
+
+    Returns:
+        time floored by the gradient raster time in s.
+    """
+    if t < 0:
+        return 0
+
+    # convert to second
+    t_sec = int(math.floor(t * 1E6))
+    raster_time_sec = int(raster_time * 1E6)
+
+    resid = t_sec % raster_time_sec
+
+    if resid > 0:
+        t_sec = t_sec - resid
+
+    # return in us and allow only 6 decimal points
+    return round(t_sec * 1E-6, 6)
