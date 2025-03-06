@@ -12,17 +12,20 @@ from pypulseq import util
 def test_round_raster_time():
     N = 100
     t = abs(np.random.normal(scale=20, size=N))*1E-6
-    raster_time = 10E-6
 
-    for case in ['up', 'down']:
+    for raster_time in [10E-6, 1E-7]:
 
-        for n in range(N):
+        for case in ['up', 'down']:
 
-            ti = t[n]
-            if case == 'up':
-                to = util.round_up_raster_time(ti, raster_time)
-            elif case == 'down':
-                to = util.round_down_raster_time(ti, raster_time)
+            for n in range(N):
 
-            if to % raster_time:
-                pytest.raises(ValueError, match=r'not rounded.')
+                ti = t[n]
+                if case == 'up':
+                    to = util.round_up_raster_time(ti, raster_time)
+                elif case == 'down':
+                    to = util.round_down_raster_time(ti, raster_time)
+
+                print('> ', case, ': ', ti, to)
+
+                if to % raster_time:
+                    pytest.raises(ValueError, match=r'not rounded.')
