@@ -7,6 +7,8 @@ from pypulseq import eps, util
 from pypulseq.opts import Opts
 from pypulseq.utils.tracing import trace, trace_enabled
 
+def _scalar_divide(a, b):
+    return a / b if b!=0 else 0.
 
 def calculate_shortest_params_for_area(area: float, max_slew: float, max_grad: float, grad_raster_time: float):
     """Calculate the shortest possible rise_time, flat_time, and fall_time for a given area."""
@@ -15,7 +17,7 @@ def calculate_shortest_params_for_area(area: float, max_slew: float, max_grad: f
     rise_time = util.round_up_raster_time(math.sqrt(abs(area) / max_slew), grad_raster_time)
 
     # Calculate initial amplitude
-    amplitude = area / rise_time
+    amplitude = _scalar_divide(area, rise_time)
     effective_time = rise_time
 
     # Adjust for max gradient constraint
@@ -227,12 +229,12 @@ def make_trapezoid(
     if abs(amplitude2) > max_grad:
         raise ValueError(f'Refined amplitude ({abs(amplitude2):0.0f} Hz/m) is larger than max ({max_grad:0.0f} Hz/m).')
 
-    if abs(amplitude2) / rise_time > max_slew:
+    if _scalar_divide(abs(amplitude2), rise_time) > max_slew:
         raise ValueError(
             f'Refined slew rate ({abs(amplitude2) / rise_time:0.0f} Hz/m/s) for ramp up is larger than max ({max_slew:0.0f} Hz/m/s).'
         )
 
-    if abs(amplitude2) / fall_time > max_slew:
+    if _scalar_divide(abs(amplitude2), fall_time) > max_slew:
         raise ValueError(
             f'Refined slew rate ({abs(amplitude2) / fall_time:0.0f} Hz/m/s) for ramp down is larger than max ({max_slew:0.0f} Hz/m/s).'
         )
