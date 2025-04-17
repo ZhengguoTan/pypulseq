@@ -6,6 +6,7 @@ from warnings import warn
 
 import numpy as np
 
+from pypulseq import util
 from pypulseq.make_trapezoid import make_trapezoid
 from pypulseq.opts import Opts
 from pypulseq.supported_labels_rf_use import get_supported_rf_uses
@@ -143,12 +144,23 @@ def make_sinc_pulse(
             system.max_slew = max_slew
 
         amplitude = bandwidth / slice_thickness
-        area = amplitude * duration
-        gz = make_trapezoid(channel='z', system=system, flat_time=duration, flat_area=area)
+        gz_dur = util.round_up_raster_time(duration, system.grad_raster_time)
+        area = amplitude * gz_dur
+        gz = make_trapezoid(channel='z', system=system, flat_time=gz_dur, flat_area=area)
+
+        # Reduce PNS by using a trapezoid with a longer flat time
+        gzr_flat_time = util.round_up_raster_time(duration/2, system.grad_raster_time)
+        gzr_rise_time = util.round_up_raster_time(system.max_grad / system.max_slew, system.grad_raster_time)
+        gzr_area = -area * (1 - center_pos) - 0.5 * (gz.area - area)
+        gzr_amp = gzr_area / (gzr_rise_time + gzr_flat_time)
+
         gzr = make_trapezoid(
             channel='z',
             system=system,
-            area=-area * (1 - center_pos) - 0.5 * (gz.area - area),
+            amplitude=gzr_amp,
+            flat_time=gzr_flat_time,
+            rise_time=gzr_rise_time,
+            fall_time=gzr_rise_time
         )
 
         if rf.delay > gz.rise_time:
