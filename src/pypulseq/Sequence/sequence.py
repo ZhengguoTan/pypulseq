@@ -1074,6 +1074,203 @@ class Sequence:
         if plot_now:
             plt.show()
 
+    def plot_in_one_fig(
+        self,
+        label: str = str(),
+        show_blocks: bool = False,
+        save: bool = False,
+        fig_name: str = 'seq_plot.jpg',
+        time_range=(0, np.inf),
+        time_disp: str = 's',
+        grad_disp: str = 'kHz/m',
+        plot_now: bool = True,
+    ) -> None:
+        """
+        Plot `Sequence` in one figure.
+
+        Parameters
+        ----------
+        label : str, default=str()
+            Plot label values for ADC events: in this example for LIN and REP labels; other valid labes are accepted as
+            a comma-separated list.
+        save : bool, default=False
+            Boolean flag indicating if plots should be saved. The two figures will be saved as JPG with numerical
+            suffixes to the filename 'seq_plot'.
+        show_blocks : bool, default=False
+            Boolean flag to indicate if grid and tick labels at the block boundaries are to be plotted.
+        time_range : iterable, default=(0, np.inf)
+            Time range (x-axis limits) for plotting the sequence. Default is 0 to infinity (entire sequence).
+        time_disp : str, default='s'
+            Time display type, must be one of `s`, `ms` or `us`.
+        grad_disp : str, default='s'
+            Gradient display unit, must be one of `kHz/m` or `mT/m`.
+        plot_now : bool, default=True
+            If true, function immediately shows the plots, blocking the rest of the code until plots are exited.
+            If false, plots are shown when plt.show() is called. Useful if plots are to be modified.
+        plot_type : str, default='Gradient'
+            Gradients display type, must be one of either 'Gradient' or 'Kspace'.
+        """
+        mpl.rcParams['lines.linewidth'] = 0.75  # Set default Matplotlib linewidth
+
+        valid_time_units = ['s', 'ms', 'us']
+        valid_grad_units = ['kHz/m', 'mT/m']
+        valid_labels = get_supported_labels()
+        if not all(isinstance(x, (int, float)) for x in time_range) or len(time_range) != 2:
+            raise ValueError('Invalid time range')
+        if time_disp not in valid_time_units:
+            raise ValueError('Unsupported time unit')
+
+        if grad_disp not in valid_grad_units:
+            raise ValueError('Unsupported gradient unit. Supported gradient units are: ' + str(valid_grad_units))
+
+        fig, ax = plt.subplots(6, 1, sharex=True, sharey=False)
+
+        t_factor_list = [1, 1e3, 1e6]
+        t_factor = t_factor_list[valid_time_units.index(time_disp)]
+
+        g_factor_list = [1e-3, 1e3 / self.system.gamma]
+        g_factor = g_factor_list[valid_grad_units.index(grad_disp)]
+
+        t0 = 0
+        label_defined = False
+        label_idx_to_plot = []
+        label_legend_to_plot = []
+        label_store = {}
+        for i in range(len(valid_labels)):
+            label_store[valid_labels[i]] = 0
+            if valid_labels[i] in label.upper():
+                label_idx_to_plot.append(i)
+                label_legend_to_plot.append(valid_labels[i])
+
+        if len(label_idx_to_plot) != 0:
+            p = parula.main(len(label_idx_to_plot) + 1)
+            label_colors_to_plot = p(np.arange(len(label_idx_to_plot)))
+            cycler = mpl.cycler(color=label_colors_to_plot)
+            ax[4].set_prop_cycle(cycler)  # ADC
+
+        # Block timings
+        block_edges = np.cumsum([0] + [x[1] for x in sorted(self.block_durations.items())])
+        block_edges_in_range = block_edges[(block_edges >= time_range[0]) * (block_edges <= time_range[1])]
+        if show_blocks:
+            for axn in ax:
+                axn.set_xticks(t_factor * block_edges_in_range)
+                axn.set_xticklabels(axn.get_xticklabels(), rotation=90)
+
+        for block_counter in self.block_events:
+            block = self.get_block(block_counter)
+            is_valid = time_range[0] <= t0 + self.block_durations[block_counter] and t0 <= time_range[1]
+            if is_valid:
+                if getattr(block, 'label', None) is not None:
+                    for i in range(len(block.label)):
+                        if block.label[i].type == 'labelinc':
+                            label_store[block.label[i].label] += block.label[i].value
+                        else:
+                            label_store[block.label[i].label] = block.label[i].value
+                    label_defined = True
+
+                if getattr(block, 'adc', None) is not None:  # ADC
+                    adc = block.adc
+                    # From Pulseq: According to the information from Klaus Scheffler and indirectly from Siemens this
+                    # is the present convention - the samples are shifted by 0.5 dwell
+                    t = adc.delay + (np.arange(int(adc.num_samples)) + 0.5) * adc.dwell
+                    ax[4].plot(t_factor * (t0 + t), np.zeros(len(t)), 'rx')
+                    ax[5].plot(
+                        t_factor * (t0 + t),
+                        np.angle(np.exp(1j * adc.phase_offset) * np.exp(1j * 2 * np.pi * t * adc.freq_offset)),
+                        'b.',
+                        markersize=0.25,
+                    )
+
+                    if label_defined and len(label_idx_to_plot) != 0:
+                        arr_label_store = list(label_store.values())
+                        lbl_vals = np.take(arr_label_store, label_idx_to_plot)
+                        t = t0 + adc.delay + (adc.num_samples - 1) / 2 * adc.dwell
+                        _t = [t_factor * t] * len(lbl_vals)
+                        # Plot each label individually to retrieve each corresponding Line2D object
+                        p = itertools.chain.from_iterable(
+                            [ax[4].plot(__t, _lbl_vals, '.') for __t, _lbl_vals in zip(_t, lbl_vals)]
+                        )
+                        if len(label_legend_to_plot) != 0:
+                            ax[4].legend(p, label_legend_to_plot, loc='upper left')
+                            label_legend_to_plot = []
+
+                if getattr(block, 'rf', None) is not None:  # RF
+                    rf = block.rf
+                    tc, ic = calc_rf_center(rf)
+                    time = rf.t
+                    signal = rf.signal
+                    if abs(signal[0]) != 0:
+                        signal = np.concatenate(([0], signal))
+                        time = np.concatenate(([time[0]], time))
+                        ic += 1
+
+                    if abs(signal[-1]) != 0:
+                        signal = np.concatenate((signal, [0]))
+                        time = np.concatenate((time, [time[-1]]))
+
+                    ax[0].plot(t_factor * (t0 + time + rf.delay), np.abs(signal))
+                    ax[5].plot(
+                        t_factor * (t0 + time + rf.delay),
+                        np.angle(
+                            signal * np.exp(1j * rf.phase_offset) * np.exp(1j * 2 * math.pi * time * rf.freq_offset)
+                        ),
+                        t_factor * (t0 + tc + rf.delay),
+                        np.angle(
+                            signal[ic]
+                            * np.exp(1j * rf.phase_offset)
+                            * np.exp(1j * 2 * math.pi * time[ic] * rf.freq_offset)
+                        ),
+                        'xb',
+                    )
+
+                grad_channels = ['gz', 'gy', 'gx']
+                for x in range(len(grad_channels)):  # Gradients
+                    if getattr(block, grad_channels[x], None) is not None:
+                        grad = getattr(block, grad_channels[x])
+                        if grad.type == 'grad':
+                            # We extend the shape by adding the first and the last points in an effort of making the
+                            # display a bit less confusing...
+                            time = grad.delay + np.array([0, *grad.tt, grad.shape_dur])
+                            waveform = g_factor * np.array((grad.first, *grad.waveform, grad.last))
+                        else:
+                            time = np.array(
+                                cumsum(
+                                    0,
+                                    grad.delay,
+                                    grad.rise_time,
+                                    grad.flat_time,
+                                    grad.fall_time,
+                                )
+                            )
+                            waveform = g_factor * grad.amplitude * np.array([0, 0, 1, 1, 0])
+                        ax[1+x].plot(t_factor * (t0 + time), waveform)
+            t0 += self.block_durations[block_counter]
+
+        grad_plot_labels = ['z', 'y', 'x']
+        ax[4].set_ylabel('ADC')
+        ax[0].set_ylabel('RF mag (Hz)')
+        ax[5].set_ylabel('RF/ADC phase (rad)')
+        ax[5].set_xlabel(f't ({time_disp})')
+        for x in range(3):
+            _label = grad_plot_labels[x]
+            ax[1+x].set_ylabel(f'G{_label} ({grad_disp})')
+        # fig2_subplots[-1].set_xlabel(f't ({time_disp})')
+
+        # Setting display limits
+        disp_range = t_factor * np.array([time_range[0], min(t0, time_range[1])])
+        [axn.set_xlim(disp_range) for axn in ax]
+
+        # Grid on
+        for axn in ax:
+            axn.grid()
+
+        plt.tight_layout()
+        if save:
+            plt.savefig(fig_name, dpi=300)
+
+        if plot_now:
+            plt.show()
+
     def read(self, file_path: str, detect_rf_use: bool = False, remove_duplicates: bool = True) -> None:
         """
         Read `.seq` file from `file_path`.
