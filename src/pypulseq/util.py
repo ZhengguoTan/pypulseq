@@ -47,7 +47,7 @@ def round_up_raster_time(t: float,
         return 0
 
     # convert to second*10
-    t_sec = int(math.ceil(t * 1E7))
+    t_sec = int(t * 1E7)
     raster_time_sec = int(raster_time * 1E7)
     assert raster_time_sec > 0
 
@@ -76,7 +76,7 @@ def round_down_raster_time(t: float,
         return 0
 
     # convert to second
-    t_sec = int(math.floor(t * 1E7))
+    t_sec = int(t * 1E7)
     raster_time_sec = int(raster_time * 1E7)
     assert raster_time_sec > 0
 
